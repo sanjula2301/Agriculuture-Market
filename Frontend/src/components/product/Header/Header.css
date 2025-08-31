@@ -1,0 +1,99 @@
+/* Header.css */
+
+.header {
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 32px;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.logo {
+    height: 40px;
+    width: auto;
+}
+
+.logo-text {
+    font-size: 1.25rem;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.logo-yellow {
+    color: #ca8a04;
+}
+
+.logo-green {
+    color: #15803d;
+}
+
+.nav-links {
+    display: flex;
+    gap: 24px;
+    flex-shrink: 1;
+    flex-wrap: wrap;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: black;
+    transition: color 0.2s;
+    white-space: nowrap;
+}
+
+.nav-links a:hover {
+    color: #15803d;
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.icon {
+    color: #0d9488;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.icon:hover {
+    color: #0f766e;
+}
+
+.submit-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #0d9488;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 9999px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+}
+
+.submit-button:hover {
+    background-color: #0f766e;
+}
+
+.button-icon {
+    width: 20px;
+    height: 20px;
+}
