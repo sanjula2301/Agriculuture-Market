@@ -25,9 +25,6 @@ const Hero: React.FC = () => {
               onClick={() => navigate('/products')}>
               Browse Products
             </Button>
-            <Button size="lg" variant="outline" className="bg-white/10 backdrop-blur-sm border-white hover:bg-white/20 text-white py-6 px-8 rounded-lg font-medium text-lg">
-              Meet Our Farmers
-            </Button>
           </div>
         </div>
       </div>

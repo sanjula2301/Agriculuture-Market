@@ -7,14 +7,14 @@ interface AuthenticationDialogProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode?: 'login' | 'register';
-  onLoginSuccess?: (token: string) => void; // ✅ Add this
+  onLoginSuccess?: (token: string) => void; 
 }
 
 const AuthenticationDialog: React.FC<AuthenticationDialogProps> = ({
   isOpen,
   onClose,
   initialMode = 'login',
-  onLoginSuccess, // ✅ Accept it
+  onLoginSuccess, 
 }) => {
   const [mode, setMode] = useState(initialMode);
 
@@ -32,7 +32,7 @@ const AuthenticationDialog: React.FC<AuthenticationDialogProps> = ({
         isOpen={isOpen}
         onClose={handleClose}
         onSwitchToRegister={switchToRegister}
-        onLoginSuccess={onLoginSuccess} // ✅ Pass it here
+        onLoginSuccess={onLoginSuccess} 
       />
     );
   }

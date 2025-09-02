@@ -10,66 +10,31 @@ import ProductMap from '../ProductMap/ProductMap';
 import CommentSection from '../CommentSection/CommentSection';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { AdsService, Ad } from '@/services/AdsService';
+import { auth } from '@/firebase/firebase';
 
-interface ProductDescriptionProps {
+
+  interface Props {
   productId: string;
   onBack: () => void;
 }
 
+const ProductDescription: React.FC<Props> = ({ productId, onBack }) => {
+  const userId = auth.currentUser?.uid || 'default_user';
 
-const fetchProductById = async (productId: string) => {
-  const response = await fetch(`http://localhost:8080/api/ads/public`);
-  if (!response.ok) throw new Error('Failed to fetch ads');
-  const ads = await response.json();
-  const matched = ads.find((ad: any) => ad.id === productId);
-  if (!matched) throw new Error('Product not found');
-  return matched;
-};
-
-const ProductDescription: React.FC<ProductDescriptionProps> = ({ productId, onBack }) => {
+  const adsService = new AdsService();
   const { data: product, isLoading, isError, error } = useQuery({
-    queryKey: ['product', productId],
-    queryFn: () => fetchProductById(productId),
+  queryKey: ['product', productId],
+  queryFn: () => adsService.getAdById(productId), // ✅ correct method
+});
+const { data: owner, isLoading: ownerLoading } = useQuery({
+    queryKey: ["owner", product?.ownerId],
+    queryFn: () => product ? adsService.getUserById(product.ownerId) : Promise.resolve(null),
+    enabled: !!product, // only run if product is loaded
   });
 
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-600">Loading product...</div>;
-  }
-
-  if (isError || !product) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-red-500">
-        Error: {(error as Error)?.message || 'Product not found'}
-      </div>
-    );
-  }
-
-  const formattedProduct = {
-    id: product.id,
-    name: product.title || 'Untitled',
-    price: product.price ? `Rs. ${product.price}` : 'Price not set',
-    pricePerKg: 'per unit',
-    location: product.location || 'Not specified',
-    images: product.imageUrls?.length ? product.imageUrls : ['/placeholder.svg'],
-    description: product.description || 'No description provided.',
-    details: {
-      availableAmount: product.availableAmount || 'Not specified',
-      weight: product.weight || 'Not specified',
-      harvestDate: product.harvestDate || 'Not specified',
-      category: product.category || 'Uncategorized',
-      organic: true,
-      variety: product.variety || 'General'
-    },
-    owner: {
-      name: product.ownerName || 'Unknown',
-      phone: product.phone || 'Not shared',
-      rating: 4,
-      totalReviews: 0,
-      location: product.location || 'Not specified',
-      memberSince: '2022',
-      avatar: ''
-    }
-  };
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center text-gray-600">Loading product...</div>;
+  if (isError || !product) return <div className="min-h-screen flex items-center justify-center text-red-500">Error: {(error as Error)?.message || 'Product not found'}</div>;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -82,45 +47,39 @@ const ProductDescription: React.FC<ProductDescriptionProps> = ({ productId, onBa
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Images */}
           <ProductImageGallery
-    images={formattedProduct.images}
-    productName={formattedProduct.name}
+    images={product.imageUrls}
+    productName={product.title}
   />
 
 
           {/* Product Info */}
           <div>
-            <h1 className="text-3xl font-bold mb-2">{formattedProduct.name}</h1>
-            <p className="text-xl text-lanka-green font-semibold mb-4">{formattedProduct.price}</p>
-            <p className="mb-4 text-gray-700">{formattedProduct.description}</p>
+            <h1 className="text-3xl font-bold mb-2">{product.title}</h1>
+            <p className="text-xl text-lanka-green font-semibold mb-4">{product.price}</p>
+            <p className="mb-4 text-gray-700">{product.description}</p>
 
             {/* Details */}
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <Card>
+              {/* <Card>
                 <CardContent className="flex items-center gap-3 py-4">
-                  <Weight size={20} /> {formattedProduct.details.weight}
+                  <Weight size={20} /> {product.weight}
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="flex items-center gap-3 py-4">
-                  <Package size={20} /> {formattedProduct.details.availableAmount}
+                  <Package size={20} /> {product.availableAmount}
                 </CardContent>
-              </Card>
+              </Card> */}
               <Card>
                 <CardContent className="flex items-center gap-3 py-4">
-                  <Calendar size={20} /> {formattedProduct.details.harvestDate}
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="flex items-center gap-3 py-4">
-                  <MapPin size={20} /> {formattedProduct.location}
+                  <MapPin size={20} /> {product.location}
                 </CardContent>
               </Card>
             </div>
 
             {/* Tags */}
             <div className="flex gap-2 mb-6">
-              <Badge variant="outline">{formattedProduct.details.category}</Badge>
-              <Badge variant="outline">{formattedProduct.details.variety}</Badge>
+              <Badge variant="outline">{product.category}</Badge>
             </div>
 
             {/* Buttons */}
@@ -138,9 +97,9 @@ const ProductDescription: React.FC<ProductDescriptionProps> = ({ productId, onBa
 
         {/* Owner, Map, Comments */}
         <div className="mt-12">
-          <OwnerDetails owner={formattedProduct.owner} />
-          <ProductMap location={formattedProduct.location} />
-          <CommentSection productId={formattedProduct.id} />
+         <OwnerDetails owner={owner?.displayName || "Unknown Seller"} />
+          <ProductMap location={product.location} />
+          <CommentSection productId={product.id} />
         </div>
       </main>
       <Footer />

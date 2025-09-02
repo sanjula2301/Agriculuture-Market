@@ -1,40 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged
-} from "firebase/auth";
-import { auth, googleProvider } from '@/firebase/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from 'lucide-react';
-import { sendPasswordResetEmail } from "firebase/auth";
+import { AuthService } from '@/services/AuthService';
 
-const handleForgotPassword = async () => {
-  const email = prompt("Please enter your registered email:");
-  if (!email) return;
-
-  try {
-    await sendPasswordResetEmail(auth, email);
-    alert("Password reset email sent! Please check your inbox.");
-  } catch (err: any) {
-    console.error("Password reset error:", err);
-    alert("Failed to send password reset email. Please check the email address.");
-  }
-};
+const authService = new AuthService();
 
 interface LoginDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSwitchToRegister: () => void;
-  onLoginSuccess: (token: string) => void; // ✅ NEW PROP
+  onLoginSuccess: (token: string) => void;
 }
-
-const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
 const LoginDialog: React.FC<LoginDialogProps> = ({
   isOpen,
@@ -46,59 +26,16 @@ const LoginDialog: React.FC<LoginDialogProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState<string | null>(null);
-  const [sessionTimer, setSessionTimer] = useState<NodeJS.Timeout | null>(null);
 
+  
   useEffect(() => {
-    const sessionStart = localStorage.getItem('sessionStart');
-    if (sessionStart) {
-      const now = Date.now();
-      const timeElapsed = now - parseInt(sessionStart);
-      if (timeElapsed >= SESSION_TIMEOUT) {
-        handleAutoLogout();
-      } else {
-        const remaining = SESSION_TIMEOUT - timeElapsed;
-        const timeout = setTimeout(() => {
-          handleAutoLogout();
-        }, remaining);
-        setSessionTimer(timeout);
-      }
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = authService.onAuthChange((user) => {
       if (!user) {
         localStorage.removeItem('sessionStart');
-        clearSessionTimer();
       }
     });
-
-    return () => {
-      unsubscribe();
-      clearSessionTimer();
-    };
+    return () => unsubscribe();
   }, []);
-
-  const clearSessionTimer = () => {
-    if (sessionTimer) {
-      clearTimeout(sessionTimer);
-      setSessionTimer(null);
-    }
-  };
-
-  const startSessionTimer = () => {
-    const timeout = setTimeout(() => {
-      handleAutoLogout();
-    }, SESSION_TIMEOUT);
-    setSessionTimer(timeout);
-    localStorage.setItem('sessionStart', Date.now().toString());
-  };
-
-  const handleAutoLogout = async () => {
-    clearSessionTimer();
-    localStorage.removeItem('sessionStart');
-    await signOut(auth);
-    alert("Session expired. You have been logged out.");
-    navigate("/");
-  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -111,25 +48,10 @@ const LoginDialog: React.FC<LoginDialogProps> = ({
     e.preventDefault();
     setError(null);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password);
-      const idToken = await userCredential.user.getIdToken();
-
-      const res = await fetch("http://localhost:8080/api/profile", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${idToken}`
-        }
-      });
-
-      if (res.ok) {
-        startSessionTimer();
-        onLoginSuccess(idToken); // ✅ call the parent handler
-        onClose();
-        navigate('/dashboard');
-      } else {
-        const text = await res.text();
-        setError("Backend rejected login: " + text);
-      }
+      const token = await authService.login(formData.email, formData.password);
+      onLoginSuccess(token);
+      onClose();
+      navigate('/dashboard');
     } catch (err: any) {
       console.error("Login failed:", err);
       setError(err.message || "Login failed");
@@ -138,28 +60,26 @@ const LoginDialog: React.FC<LoginDialogProps> = ({
 
   const handleGoogleLogin = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
-
-      const res = await fetch("http://localhost:8080/api/profile", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${idToken}`
-        }
-      });
-
-      if (res.ok) {
-        startSessionTimer();
-        onLoginSuccess(idToken); // ✅ call the parent handler
-        onClose();
-        navigate('/dashboard');
-      } else {
-        const text = await res.text();
-        setError("Backend rejected Google login: " + text);
-      }
+      const token = await authService.loginWithGoogle();
+      onLoginSuccess(token);
+      onClose();
+      navigate('/dashboard');
     } catch (err: any) {
       console.error("Google login failed:", err);
       setError(err.message || "Google login failed");
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const email = prompt("Please enter your registered email:");
+    if (!email) return;
+
+    try {
+      await authService.resetPassword(email);
+      alert("Password reset email sent! Please check your inbox.");
+    } catch (err: any) {
+      console.error("Password reset error:", err);
+      alert("Failed to send password reset email. Please check the email address.");
     }
   };
 
@@ -174,7 +94,14 @@ const LoginDialog: React.FC<LoginDialogProps> = ({
           <div className="space-y-4">
             <div>
               <Label htmlFor="email">Username / Email *</Label>
-              <Input id="email" name="email" type="email" value={formData.email} onChange={handleInputChange} required />
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+              />
             </div>
 
             <div>
@@ -202,20 +129,24 @@ const LoginDialog: React.FC<LoginDialogProps> = ({
 
           {error && <div className="text-red-600 text-sm">{error}</div>}
 
-          <Button type="submit" className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-lg font-medium">
+          <Button
+            type="submit"
+            className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-lg font-medium"
+          >
             LOGIN
           </Button>
         </form>
 
         <div className="text-center">
           <button
-          type="button"
-          className="text-sm text-gray-500 hover:text-gray-700"
-          onClick={handleForgotPassword}>
+            type="button"
+            className="text-sm text-gray-500 hover:text-gray-700"
+            onClick={handleForgotPassword}
+          >
             Forgotten your password?
           </button>
         </div>
-    
+
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t border-gray-200" />
@@ -244,7 +175,10 @@ const LoginDialog: React.FC<LoginDialogProps> = ({
 
         <div className="text-center text-sm text-gray-600">
           Don't have an account?{' '}
-          <button onClick={onSwitchToRegister} className="text-teal-500 hover:text-teal-600 font-medium">
+          <button
+            onClick={onSwitchToRegister}
+            className="text-teal-500 hover:text-teal-600 font-medium"
+          >
             Create one here.
           </button>
         </div>

@@ -9,7 +9,7 @@ import Dashboard from "./pages/login/Dashboard";
 import Settings from "./pages/login/Settings";
 import ProductDisplayPage from './pages/product/productDisplay'; 
 import SubmitAd from "./pages/SubmitAd";
-
+import Categories from "./pages/categories/categories";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -22,9 +22,13 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/settings" element={<Settings />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */
-          <Route path="/products" element={<ProductDisplayPage  />} />}
+          <Route path="/categories" element={<Categories />} />
+          <Route path="/category/vegetables" element={<ProductDisplayPage />} />
+          <Route path="/category/fruits" element={<ProductDisplayPage />} />
+          <Route path="/category/grains" element={<ProductDisplayPage />} />
+          <Route path="/category/spices" element={<ProductDisplayPage />} />
+          <Route path="/category/legumes" element={<ProductDisplayPage />} />
+          <Route path="/products" element={<ProductDisplayPage  />} />
           <Route path="*" element={<NotFound />} />
           <Route path="/submit-ad" element={<SubmitAd />} />
         </Routes>

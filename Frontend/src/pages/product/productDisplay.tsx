@@ -6,30 +6,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Filter } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-
-// ✅ Fetch function
-const fetchPublicAds = async () => {
-  const res = await fetch("http://localhost:8080/api/ads/public");
-  if (!res.ok) throw new Error("Failed to fetch ads");
-  return res.json();
-};
+import { AdsService, Ad } from '@/services/AdsService';
+import { auth } from '@/firebase/firebase';
 
 const Products = () => {
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const userId = auth.currentUser?.uid || 'default_user';
+  const adsService = new AdsService();
 
-  // ✅ React Query integration
   const { data: products = [], isLoading, isError, error } = useQuery({
-    queryKey: ['publicAds'], // you can later do ['publicAds', searchTerm]
-    queryFn: fetchPublicAds,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    queryKey: ['userAds', userId],
+    queryFn: () => adsService.getAllAds,
+    staleTime: 1000 * 60 * 5,
   });
 
   const handleProductClick = (id: string) => setSelectedProductId(id);
   const handleBackToProducts = () => setSelectedProductId(null);
 
-  if (selectedProductId) {
+  if (selectedProductId)
     return <ProductDescription productId={selectedProductId} onBack={handleBackToProducts} />;
-  }
 
   return (
     <div className="flex flex-col min-h-screen">

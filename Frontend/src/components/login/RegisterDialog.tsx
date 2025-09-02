@@ -1,14 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  updateProfile,
-  browserSessionPersistence,
-  setPersistence
-} from 'firebase/auth';
-import { auth, googleProvider } from '@/firebase/firebase';
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -18,15 +10,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from 'lucide-react';
+import { AuthService } from '@/services/AuthService';
 
 interface RegisterDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSwitchToLogin: () => void;
+  onRegisterSuccess?: (token: string) => void; 
 }
 
-const RegisterDialog: React.FC<RegisterDialogProps> = ({ isOpen, onClose, onSwitchToLogin }) => {
+const RegisterDialog: React.FC<RegisterDialogProps> = ({
+  isOpen,
+  onClose,
+  onSwitchToLogin,
+  onRegisterSuccess
+}) => {
   const navigate = useNavigate();
+  const authService = new AuthService();
 
   const [formData, setFormData] = useState({
     username: '',
@@ -53,54 +53,27 @@ const RegisterDialog: React.FC<RegisterDialogProps> = ({ isOpen, onClose, onSwit
     }
 
     try {
-      await setPersistence(auth, browserSessionPersistence);
+      const token = await authService.register(
+        formData.username,
+        formData.email,
+        formData.password
+      );
 
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      await updateProfile(userCredential.user, { displayName: formData.username });
-
-      const idToken = await userCredential.user.getIdToken();
-
-      const res = await fetch('http://localhost:8080/api/profile', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${idToken}`
-        }
-      });
-
-      if (res.ok) {
-        onClose();
-        navigate('/dashboard');
-      } else {
-        const text = await res.text();
-        setError(`Backend rejected registration: ${text}`);
-      }
+      if (onRegisterSuccess) onRegisterSuccess(token);
+      onClose();
+      navigate('/dashboard');
     } catch (err: any) {
-      console.error("Firebase registration error:", err);
+      console.error("Registration error:", err);
       setError(err.message || "Registration failed.");
     }
   };
 
   const handleGoogleRegister = async () => {
     try {
-      await setPersistence(auth, browserSessionPersistence);
-
-      const result = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
-
-      const res = await fetch('http://localhost:8080/api/profile', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${idToken}`
-        }
-      });
-
-      if (res.ok) {
-        onClose();
-        navigate('/dashboard');
-      } else {
-        const text = await res.text();
-        setError(`Backend rejected Google registration: ${text}`);
-      }
+      const token = await authService.registerWithGoogle();
+      if (onRegisterSuccess) onRegisterSuccess(token);
+      onClose();
+      navigate('/dashboard');
     } catch (err: any) {
       console.error("Google registration error:", err);
       setError(err.message || "Google registration failed.");
@@ -237,3 +210,4 @@ const RegisterDialog: React.FC<RegisterDialogProps> = ({ isOpen, onClose, onSwit
 };
 
 export default RegisterDialog;
+

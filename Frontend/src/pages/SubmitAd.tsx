@@ -22,9 +22,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { v4 as uuidv4 } from "uuid";
 import { auth } from '@/firebase/firebase';
+import { AdsService, AdData } from "@/services/AdsService";
+
+import { ImageService } from '@/services/ImageService';
 
 const SubmitAd: React.FC = () => {
   const [title, setTitle] = useState('');
@@ -38,8 +39,12 @@ const SubmitAd: React.FC = () => {
   const [category, setCategory] = useState('');
   const [useProfileAddress, setUseProfileAddress] = useState(true);
   const [useProfileContact, setUseProfileContact] = useState(true);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  // Location states
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+
+  const [selectedAddress, setSelectedAddress] = useState('');
+  const [selectedLatLng, setSelectedLatLng] = useState<{ lat: number; lng: number } | null>(null);
+  const [contactPhone, setContactPhone] = useState('');
   const [location, setLocation] = useState('');
   const [preciseLocation, setPreciseLocation] = useState('');
   const [country, setCountry] = useState('Sri Lanka');
@@ -47,158 +52,92 @@ const SubmitAd: React.FC = () => {
   const [city, setCity] = useState('');
   const [street, setStreet] = useState('');
 
-  const [contactPhone, setContactPhone] = useState("");
-  
-  // Image upload states
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  
-  // Google Maps integration states
-  const [selectedAddress, setSelectedAddress] = useState('');
-  const [selectedLatLng, setSelectedLatLng] = useState<{ lat: number; lng: number } | null>(null);
-  
   const locationHook = useLocation();
   const currentPath = locationHook.pathname;
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files) {
-      const newFiles = Array.from(files).slice(0, 5 - selectedImages.length); // Max 5 images
-      
-      // Create preview URLs
+      const newFiles = Array.from(files).slice(0, 5 - selectedImages.length);
       const newPreviews = newFiles.map(file => URL.createObjectURL(file));
-      
       setSelectedImages(prev => [...prev, ...newFiles]);
       setImagePreviews(prev => [...prev, ...newPreviews]);
     }
   };
 
   const removeImage = (index: number) => {
-    // Clean up object URL to prevent memory leaks
     URL.revokeObjectURL(imagePreviews[index]);
-    
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
     setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
-  
+
   const handleLocationChange = (address: string, latLng: { lat: number; lng: number }) => {
-  setSelectedAddress(address);
-  setSelectedLatLng(latLng);
+    setSelectedAddress(address);
+    setSelectedLatLng(latLng);
+    setPreciseLocation(address);
+    setLocation(`${latLng.lat},${latLng.lng}`);
+  };
 
-  // ✅ copy into the fields the backend looks for
-  setPreciseLocation(address);                          // e.g. “No 12, Main Rd, Galle”
-  setLocation(`${latLng.lat},${latLng.lng}`);           // e.g. “6.0552, 80.2210”
-};
-
-const handleSubmit = async () => {
-  if (!title.trim()) {
-    alert("Title is required.");
+  const handleSubmit = async () => {
+  if (!title.trim() || !category.trim()) {
+    alert("Title and category are required.");
     return;
   }
 
-  if (!category.trim()) {
-    alert("Category is required.");
+  const user = auth.currentUser;
+  if (!user) {
+    alert("Please log in to submit an ad.");
     return;
   }
-  
+
   try {
-    const user = auth.currentUser;
-    if (!user) {
-      alert("Please log in to submit an ad.");
-      return;
-    }
+    const adsService = new AdsService();
 
-    const userId = user.uid;
-    const adId = uuidv4();
+    // Upload images
+    const imageUrls = await ImageService.uploadImages(selectedImages);
 
-    const imageUrls: string[] = [];
+    const adData: AdData = {
+      title,
+      adType,
+      price: parseFloat(price),
+      negotiable: isNegotiable,
+      salePrice: salePrice ? parseFloat(salePrice) : null,
+      currency,
+      condition,
+      description,
+      category,
+      location,
+      preciseLocation,
+      imageUrls,
+      useProfileAddress,
+      useProfileContact,
+      phone: !useProfileContact ? contactPhone : null, // keep phone, remove ownerId
+    };
 
-    for (const file of selectedImages) {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', 'Ranaswanu'); 
-      formData.append('cloud_name', 'dfpv0ncdq'); 
+    // Pass ownerId separately to the service
+    const adId = await adsService.addAd(adData, user.uid);
 
-      const response = await fetch(`https://api.cloudinary.com/v1_1/dfpv0ncdq/image/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to upload image to Cloudinary');
-      }
-
-      const data = await response.json();
-      imageUrls.push(data.secure_url); 
-    }
-
-    const adData = {
-  title,
-  adType,
-  price: parseFloat(price),
-  negotiable: isNegotiable,
-  salePrice: parseFloat(salePrice),
-  currency,
-  condition,
-  description,
-  category,
-  phone: useProfileContact ? undefined : contactPhone,
-  location: useProfileAddress ? undefined : location,
-  preciseLocation: useProfileAddress ? undefined : preciseLocation,
-  address: selectedAddress,
-  latitude: selectedLatLng?.lat,
-  longitude: selectedLatLng?.lng,
-  imageUrls,
-  useProfileAddress,
-  useProfileContact
-};
-
-    const token = await user.getIdToken();
-    const response = await fetch("http://localhost:8080/api/ads/submit", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify(adData)
-    });
-
-    const result = await response.text();
-
-    if (response.ok) {
-      alert("Ad submitted successfully!");
-      console.log(result);
-    } else {
-      throw new Error(result);
-    }
-  } catch (error) {
+    alert("Ad submitted successfully! ID: " + adId);
+  } catch (error: any) {
     console.error("Error submitting ad:", error);
-    alert("An error occurred while submitting the ad.");
+    alert("Error submitting ad. Check Firestore rules.");
   }
 };
   const sidebarItems = [
-    { 
-      category: 'MAIN',
-      items: [{ title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard }]
-    },
-    {
-      category: 'ADS',
-      items: [
+    { category: 'MAIN', items: [{ title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard }] },
+    { category: 'ADS', items: [
         { title: 'Your Ads', url: '/dashboard/your-ads', icon: FileText },
         { title: 'Favorite Ads', url: '/dashboard/favorites', icon: Heart },
         { title: 'Auctions', url: '/dashboard/auctions', icon: Gavel }
       ]
     },
-    {
-      category: 'FEEDBACK',
-      items: [{ title: 'Reviews', url: '/dashboard/reviews', icon: Star }]
-    }
+    { category: 'FEEDBACK', items: [{ title: 'Reviews', url: '/dashboard/reviews', icon: Star }] }
   ];
 
   const isActive = (url: string) => currentPath === url;
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+      <div className="flex min-h-screen bg-gray-50">
       {/* Sidebar */}
       <div className="w-64 bg-gray-800 text-white">
         <div className="p-6 border-b border-gray-700">
@@ -630,3 +569,4 @@ const handleSubmit = async () => {
 };
 
 export default SubmitAd;
+
