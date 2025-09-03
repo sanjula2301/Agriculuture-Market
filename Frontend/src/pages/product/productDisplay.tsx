@@ -14,11 +14,11 @@ const Products = () => {
   const userId = auth.currentUser?.uid || 'default_user';
   const adsService = new AdsService();
 
-  const { data: products = [], isLoading, isError, error } = useQuery({
-    queryKey: ['userAds', userId],
-    queryFn: () => adsService.getAllAds,
-    staleTime: 1000 * 60 * 5,
-  });
+  const { data: products = [], isLoading, isError, error } = useQuery<Ad[]>({
+  queryKey: ['userAds', userId],
+  queryFn: () => adsService.getAllAds(),
+  staleTime: 1000 * 60 * 5,
+});
 
   const handleProductClick = (id: string) => setSelectedProductId(id);
   const handleBackToProducts = () => setSelectedProductId(null);
